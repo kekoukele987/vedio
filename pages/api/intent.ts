@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { addMessage } from '../../lib/db'
+import { initDb, addMessage } from '../../lib/db'
 
 type IntentResponse = {
   action: string
@@ -14,6 +14,8 @@ function validateIntent(obj: any): obj is IntentResponse {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await initDb()
+
   if (req.method !== 'POST') return res.status(405).end()
   const { projectId, prompt } = req.body as { projectId?: string; prompt?: string }
   if (!prompt) return res.status(400).json({ error: 'Missing prompt' })

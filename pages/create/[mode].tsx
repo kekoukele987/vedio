@@ -14,9 +14,15 @@ type Message = {
 
 export default function CreatePage() {
   const router = useRouter()
-  const { mode } = router.query
+  const { mode, projectId } = router.query
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+
+  useEffect(() => {
+    if (projectId && !selectedProject) {
+      setSelectedProject(String(projectId))
+    }
+  }, [projectId, selectedProject])
 
   useEffect(() => {
     if (!selectedProject) return

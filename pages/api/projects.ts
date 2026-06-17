@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { getProjects, createProject } from '../../lib/db'
+import { initDb, getProjects, createProject } from '../../lib/db'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await initDb()
+
   if (req.method === 'GET') {
     const projects = await getProjects()
     return res.status(200).json({ projects })

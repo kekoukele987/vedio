@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { getMessages, addMessage } from '../../../../lib/db'
+import { initDb, getMessages, addMessage } from '../../../../lib/db'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await initDb()
+
   const { id } = req.query as { id: string }
   if (req.method === 'GET') {
     const messages = await getMessages(id)
