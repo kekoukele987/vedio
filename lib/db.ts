@@ -3,6 +3,10 @@ import { Pool } from 'mysql2/promise'
 
 let pool: Pool | null = null
 
+function formatDateTime(isoString: string): string {
+  return new Date(isoString).toISOString().slice(0, 19).replace('T', ' ')
+}
+
 function getPool(): Pool {
   if (!pool) {
     pool = mysql.createPool({
@@ -49,10 +53,12 @@ export async function initDb() {
         title VARCHAR(255) NOT NULL,
         createdAt DATETIME NOT NULL,
         type VARCHAR(50) NOT NULL,
-        outline LONGTEXT NOT NULL DEFAULT '',
-        sourceCode LONGTEXT NOT NULL DEFAULT '',
+        outline LONGTEXT,
+        sourceCode LONGTEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_createdAt (createdAt),
+        INDEX idx_type (type)
       ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     `)
 
@@ -129,10 +135,11 @@ export async function addMessage(
   try {
     const id = crypto.randomUUID()
     const createdAt = new Date().toISOString()
+    const formattedCreatedAt = formatDateTime(createdAt)
 
     await connection.query(
       'INSERT INTO message (id, projectUuid, role, content, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [id, projectUuid, role, content, createdAt]
+      [id, projectUuid, role, content, formattedCreatedAt]
     )
 
     return { id, projectUuid, role, content, createdAt }
@@ -154,12 +161,13 @@ export async function createProject({
   try {
     const uuid = crypto.randomUUID()
     const createdAt = new Date().toISOString()
+    const formattedCreatedAt = formatDateTime(createdAt)
     const outline = ''
     const sourceCode = ''
 
     await connection.query(
       'INSERT INTO project (uuid, title, createdAt, type, outline, sourceCode) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuid, title, createdAt, type, outline, sourceCode]
+      [uuid, title, formattedCreatedAt, type, outline, sourceCode]
     )
 
     return { uuid, title, createdAt, type, outline, sourceCode }
