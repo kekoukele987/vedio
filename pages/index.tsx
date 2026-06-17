@@ -14,14 +14,10 @@ export default function Home() {
         <h2 className="title">选择创作模式</h2>
         <div className="modes">
           <Link href="/create/image">
-            <a>
-              <ModeCard title="图片轮播模式" desc="AI 生成图片，轮播成片" />
-            </a>
+            <ModeCard title="图片轮播模式" desc="AI 生成图片，轮播成片" />
           </Link>
           <Link href="/create/html">
-            <a>
-              <ModeCard title="HTML 视频模式" desc="AI 生成网页动画，导出视频" />
-            </a>
+            <ModeCard title="HTML 视频模式" desc="AI 生成网页动画，导出视频" />
           </Link>
         </div>
       </main>
