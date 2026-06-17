@@ -9,7 +9,7 @@ type Project = {
   sourceCode: string
 }
 
-export default function Sidebar() {
+export default function Sidebar({ selectedProject, onSelectProject }: { selectedProject?: string | null; onSelectProject?: (id: string) => void }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -42,7 +42,7 @@ export default function Sidebar() {
           <li className="project-item">暂无历史项目</li>
         ) : (
           projects.map((project) => (
-            <li key={project.uuid} className="project-item">
+            <li key={project.uuid} className={`project-item${selectedProject === project.uuid ? ' selected' : ''}`} onClick={() => onSelectProject?.(project.uuid)}>
               <div>
                 <div className="proj-name">{project.title}</div>
                 <div className="proj-mode">{project.type}</div>

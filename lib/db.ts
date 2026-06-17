@@ -35,6 +35,14 @@ export type Project = {
   sourceCode: string
 }
 
+export type Message = {
+  id: string
+  projectUuid: string
+  role: 'user' | 'system'
+  content: string
+  createdAt: string
+}
+
 export async function initDb() {
   if (db) return
   SQL = await initSqlJs({ locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}` })
@@ -53,6 +61,17 @@ export async function initDb() {
       type TEXT NOT NULL,
       outline TEXT NOT NULL DEFAULT '',
       sourceCode TEXT NOT NULL DEFAULT ''
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS message (
+      id TEXT PRIMARY KEY,
+      projectUuid TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(projectUuid) REFERENCES project(uuid)
     )
   `)
 
@@ -76,6 +95,36 @@ export async function getProjects(): Promise<Project[]> {
   }
   stmt.free()
   return rows
+}
+
+export async function getMessages(projectUuid: string): Promise<Message[]> {
+  if (!db) await initDb()
+  const stmt = db!.prepare('SELECT id, projectUuid, role, content, createdAt FROM message WHERE projectUuid = ? ORDER BY createdAt ASC')
+  const rows: Message[] = []
+  stmt.bind([projectUuid])
+  while (stmt.step()) {
+    const r = stmt.getAsObject() as any
+    rows.push({
+      id: String(r.id),
+      projectUuid: String(r.projectUuid),
+      role: String(r.role) as 'user' | 'system',
+      content: String(r.content),
+      createdAt: String(r.createdAt)
+    })
+  }
+  stmt.free()
+  return rows
+}
+
+export async function addMessage(projectUuid: string, role: 'user' | 'system', content: string): Promise<Message> {
+  if (!db) await initDb()
+  const id = crypto.randomUUID()
+  const createdAt = new Date().toISOString()
+  const stmt = db!.prepare('INSERT INTO message (id, projectUuid, role, content, createdAt) VALUES (?, ?, ?, ?, ?)')
+  stmt.run([id, projectUuid, role, content, createdAt])
+  stmt.free()
+  saveDbToDisk()
+  return { id, projectUuid, role, content, createdAt }
 }
 
 export async function createProject({ title, type }: { title: string; type: string }): Promise<Project> {
