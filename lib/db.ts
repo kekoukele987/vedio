@@ -1,29 +1,24 @@
-import initSqlJs, { Database as SqlJsDatabase, SqlJsStatic } from 'sql.js'
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import mysql from 'mysql2/promise'
+import { Pool } from 'mysql2/promise'
 
-const dataDir = join(process.cwd(), 'data')
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir)
-}
+let pool: Pool | null = null
 
-let SQL: SqlJsStatic | null = null
-let db: SqlJsDatabase | null = null
-const DB_FILE = join(dataDir, 'projects.db')
-
-function loadDbFromDisk(): Uint8Array | null {
-  try {
-    if (!existsSync(DB_FILE)) return null
-    return readFileSync(DB_FILE)
-  } catch (err) {
-    return null
+function getPool(): Pool {
+  if (!pool) {
+    pool = mysql.createPool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'ai_video',
+      waitForConnections: true,
+      connectionLimit: parseInt(process.env.DB_POOL_MAX || '10'),
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelayMs: 0,
+    })
   }
-}
-
-function saveDbToDisk() {
-  if (!db) return
-  const data = db.export()
-  writeFileSync(DB_FILE, Buffer.from(data))
+  return pool
 }
 
 export type Project = {
@@ -44,101 +39,185 @@ export type Message = {
 }
 
 export async function initDb() {
-  if (db) return
-  SQL = await initSqlJs({ locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${file}` })
-  const fileBuffer = loadDbFromDisk()
-  if (fileBuffer) {
-    db = new SQL.Database(fileBuffer)
-  } else {
-    db = new SQL.Database()
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS project (
+        uuid VARCHAR(36) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        createdAt DATETIME NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        outline LONGTEXT NOT NULL DEFAULT '',
+        sourceCode LONGTEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `)
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS message (
+        id VARCHAR(36) PRIMARY KEY,
+        projectUuid VARCHAR(36) NOT NULL,
+        role VARCHAR(20) NOT NULL,
+        content LONGTEXT NOT NULL,
+        createdAt DATETIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(projectUuid) REFERENCES project(uuid) ON DELETE CASCADE,
+        INDEX idx_projectUuid (projectUuid),
+        INDEX idx_createdAt (createdAt)
+      ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `)
+  } finally {
+    connection.release()
   }
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS project (
-      uuid TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      createdAt TEXT NOT NULL,
-      type TEXT NOT NULL,
-      outline TEXT NOT NULL DEFAULT '',
-      sourceCode TEXT NOT NULL DEFAULT ''
-    )
-  `)
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS message (
-      id TEXT PRIMARY KEY,
-      projectUuid TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      createdAt TEXT NOT NULL,
-      FOREIGN KEY(projectUuid) REFERENCES project(uuid)
-    )
-  `)
-
-  saveDbToDisk()
 }
 
 export async function getProjects(): Promise<Project[]> {
-  if (!db) await initDb()
-  const stmt = db!.prepare('SELECT uuid, title, createdAt, type, outline, sourceCode FROM project ORDER BY createdAt DESC')
-  const rows: Project[] = []
-  while (stmt.step()) {
-    const r = stmt.getAsObject() as any
-    rows.push({
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    const [rows] = await connection.query<any[]>(
+      'SELECT uuid, title, createdAt, type, outline, sourceCode FROM project ORDER BY createdAt DESC'
+    )
+
+    return rows.map(r => ({
       uuid: String(r.uuid),
       title: String(r.title),
-      createdAt: String(r.createdAt),
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
       type: String(r.type),
       outline: String(r.outline || ''),
       sourceCode: String(r.sourceCode || '')
-    })
+    }))
+  } finally {
+    connection.release()
   }
-  stmt.free()
-  return rows
 }
 
 export async function getMessages(projectUuid: string): Promise<Message[]> {
-  if (!db) await initDb()
-  const stmt = db!.prepare('SELECT id, projectUuid, role, content, createdAt FROM message WHERE projectUuid = ? ORDER BY createdAt ASC')
-  const rows: Message[] = []
-  stmt.bind([projectUuid])
-  while (stmt.step()) {
-    const r = stmt.getAsObject() as any
-    rows.push({
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    const [rows] = await connection.query<any[]>(
+      'SELECT id, projectUuid, role, content, createdAt FROM message WHERE projectUuid = ? ORDER BY createdAt ASC',
+      [projectUuid]
+    )
+
+    return rows.map(r => ({
       id: String(r.id),
       projectUuid: String(r.projectUuid),
       role: String(r.role) as 'user' | 'system',
       content: String(r.content),
-      createdAt: String(r.createdAt)
-    })
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt)
+    }))
+  } finally {
+    connection.release()
   }
-  stmt.free()
-  return rows
 }
 
-export async function addMessage(projectUuid: string, role: 'user' | 'system', content: string): Promise<Message> {
-  if (!db) await initDb()
-  const id = crypto.randomUUID()
-  const createdAt = new Date().toISOString()
-  const stmt = db!.prepare('INSERT INTO message (id, projectUuid, role, content, createdAt) VALUES (?, ?, ?, ?, ?)')
-  stmt.run([id, projectUuid, role, content, createdAt])
-  stmt.free()
-  saveDbToDisk()
-  return { id, projectUuid, role, content, createdAt }
+export async function addMessage(
+  projectUuid: string,
+  role: 'user' | 'system',
+  content: string
+): Promise<Message> {
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    const id = crypto.randomUUID()
+    const createdAt = new Date().toISOString()
+
+    await connection.query(
+      'INSERT INTO message (id, projectUuid, role, content, createdAt) VALUES (?, ?, ?, ?, ?)',
+      [id, projectUuid, role, content, createdAt]
+    )
+
+    return { id, projectUuid, role, content, createdAt }
+  } finally {
+    connection.release()
+  }
 }
 
-export async function createProject({ title, type }: { title: string; type: string }): Promise<Project> {
-  if (!db) await initDb()
-  const uuid = crypto.randomUUID()
-  const createdAt = new Date().toISOString()
-  const outline = ''
-  const sourceCode = ''
+export async function createProject({
+  title,
+  type,
+}: {
+  title: string
+  type: string
+}): Promise<Project> {
+  const pool = getPool()
+  const connection = await pool.getConnection()
 
-  const stmt = db!.prepare('INSERT INTO project (uuid, title, createdAt, type, outline, sourceCode) VALUES (?, ?, ?, ?, ?, ?)')
-  stmt.run([uuid, title, createdAt, type, outline, sourceCode])
-  stmt.free()
+  try {
+    const uuid = crypto.randomUUID()
+    const createdAt = new Date().toISOString()
+    const outline = ''
+    const sourceCode = ''
 
-  saveDbToDisk()
+    await connection.query(
+      'INSERT INTO project (uuid, title, createdAt, type, outline, sourceCode) VALUES (?, ?, ?, ?, ?, ?)',
+      [uuid, title, createdAt, type, outline, sourceCode]
+    )
 
-  return { uuid, title, createdAt, type, outline, sourceCode }
+    return { uuid, title, createdAt, type, outline, sourceCode }
+  } finally {
+    connection.release()
+  }
+}
+
+export async function updateProjectOutline(uuid: string, outline: string): Promise<void> {
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    await connection.query(
+      'UPDATE project SET outline = ? WHERE uuid = ?',
+      [outline, uuid]
+    )
+  } finally {
+    connection.release()
+  }
+}
+
+export async function updateProjectSourceCode(uuid: string, sourceCode: string): Promise<void> {
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    await connection.query(
+      'UPDATE project SET sourceCode = ? WHERE uuid = ?',
+      [sourceCode, uuid]
+    )
+  } finally {
+    connection.release()
+  }
+}
+
+export async function getProject(uuid: string): Promise<Project | null> {
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    const [rows] = await connection.query<any[]>(
+      'SELECT uuid, title, createdAt, type, outline, sourceCode FROM project WHERE uuid = ?',
+      [uuid]
+    )
+
+    if (rows.length === 0) return null
+
+    const r = rows[0]
+    return {
+      uuid: String(r.uuid),
+      title: String(r.title),
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+      type: String(r.type),
+      outline: String(r.outline || ''),
+      sourceCode: String(r.sourceCode || '')
+    }
+  } finally {
+    connection.release()
+  }
 }

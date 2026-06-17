@@ -8,7 +8,7 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
-    "sql.js": "^1.8.0",
+    "mysql2": "^3.6.5",
     "next": "^13.5.11",
     "react": "18.2.0",
     "react-dom": "18.2.0"
