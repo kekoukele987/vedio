@@ -8,21 +8,48 @@ type Message = {
 
 export default function ChatPanel({ projectId, messages, onMessagesChange }: { projectId?: string | null; messages?: Message[]; onMessagesChange?: (m: Message[]) => void }) {
   const [input, setInput] = useState('')
-
-  useEffect(() => {
-    // noop
-  }, [projectId])
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSend() {
-    if (!input || !projectId) return
-    // call intent API
-    const res = await fetch('/api/intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, prompt: input }) })
-    const data = await res.json()
-    // refresh messages
-    const msgsRes = await fetch(`/api/project/${projectId}/messages`)
-    const msgsData = await msgsRes.json()
-    onMessagesChange?.(msgsData.messages || [])
-    setInput('')
+    if (!input.trim()) return
+    if (!projectId) {
+      setError('项目ID未加载，请稍候')
+      return
+    }
+
+    setIsSending(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, prompt: input })
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData?.error || '请求失败')
+      }
+
+      const data = await res.json()
+      console.log('Intent response:', data)
+
+      // 刷新消息列表
+      const msgsRes = await fetch(`/api/project/${projectId}/messages`)
+      if (!msgsRes.ok) throw new Error('获取消息失败')
+
+      const msgsData = await msgsRes.json()
+      onMessagesChange?.(msgsData.messages || [])
+      setInput('')
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : '发送失败'
+      console.error('Chat error:', err)
+      setError(errMsg)
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -42,9 +69,18 @@ export default function ChatPanel({ projectId, messages, onMessagesChange }: { p
           </div>
         ))}
       </div>
+      {error && <div className="chat-error">{error}</div>}
       <div className="chat-input">
-        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="描述你想要的修改，例如：调整配色、修改文案、增加数据图表..." />
-        <button className="btn-primary" onClick={handleSend}>发送</button>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && !isSending && handleSend()}
+          placeholder="描述你想要的修改，例如：调整配色、修改文案、增加数据图表..."
+          disabled={isSending || !projectId}
+        />
+        <button className="btn-primary" onClick={handleSend} disabled={isSending || !projectId || !input.trim()}>
+          {isSending ? '发送中...' : '发送'}
+        </button>
       </div>
     </div>
   )

@@ -9,7 +9,7 @@
   --accent-soft:rgba(37,99,235,0.12);
   --surface:#f8fafc;
 }
-html,body,#__next{height:100%}
+html,body,#__next{height:100%;width:100%;overflow-x:hidden}
 body{
   margin:0;
   font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
@@ -204,6 +204,8 @@ button,input{font:inherit}
   grid-template-columns:260px 1fr 360px;
   gap:20px;
   padding:20px 24px 32px;
+  width:100%;
+  overflow-x:hidden;
 }
 .left,.right{
   background:var(--panel);
@@ -302,6 +304,8 @@ button,input{font:inherit}
   display:flex;
   flex-direction:column;
   padding:22px;
+  width:100%;
+  overflow:hidden;
 }
 .canvas-inner{
   flex:1;
@@ -342,6 +346,7 @@ button,input{font:inherit}
   gap:12px;
   overflow-x:auto;
   padding-bottom:6px;
+  width:100%;
 }
 .story-card{
   background:var(--surface);

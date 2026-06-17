@@ -17,19 +17,29 @@ export default function CreatePage() {
   const { mode, projectId } = router.query
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (projectId && !selectedProject) {
-      setSelectedProject(String(projectId))
+      const projId = String(projectId)
+      setSelectedProject(projId)
     }
-  }, [projectId, selectedProject])
+  }, [projectId])
 
   useEffect(() => {
     if (!selectedProject) return
+
+    setIsLoading(true)
     fetch(`/api/project/${selectedProject}/messages`)
       .then((r) => r.json())
-      .then((d) => setMessages(d.messages || []))
-      .catch(() => {})
+      .then((d) => {
+        setMessages(d.messages || [])
+        setIsLoading(false)
+      })
+      .catch((err) => {
+        console.error('Failed to load messages:', err)
+        setIsLoading(false)
+      })
   }, [selectedProject])
 
   return (
