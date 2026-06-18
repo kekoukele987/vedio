@@ -204,6 +204,17 @@ export async function updateProjectSourceCode(uuid: string, sourceCode: string):
   }
 }
 
+export async function deleteProject(uuid: string): Promise<void> {
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    await connection.query('DELETE FROM project WHERE uuid = ?', [uuid])
+  } finally {
+    connection.release()
+  }
+}
+
 export async function getProject(uuid: string): Promise<Project | null> {
   const pool = getPool()
   const connection = await pool.getConnection()

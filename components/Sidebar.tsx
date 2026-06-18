@@ -38,6 +38,13 @@ export default function Sidebar({ selectedProject, onSelectProject }: { selected
     loadProjects()
   }, [])
 
+  async function handleDelete(e: React.MouseEvent, uuid: string) {
+    e.stopPropagation()
+    if (!confirm('确认删除该项目？')) return
+    await fetch(`/api/project/${uuid}`, { method: 'DELETE' })
+    setProjects(prev => prev.filter(p => p.uuid !== uuid))
+  }
+
   const getGradient = (index: number) => {
     return gradients[index % gradients.length]
   }
@@ -67,8 +74,11 @@ export default function Sidebar({ selectedProject, onSelectProject }: { selected
                 <div className="proj-name" title={project.title}>{project.title}</div>
                 <div className="proj-mode">{project.type}</div>
               </div>
-              <div className="proj-time">
-                {new Date(project.createdAt).toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
+              <div className="proj-footer">
+                <div className="proj-time">
+                  {new Date(project.createdAt).toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
+                </div>
+                <button className="proj-delete" onClick={(e) => handleDelete(e, project.uuid)} title="删除">×</button>
               </div>
             </li>
           ))

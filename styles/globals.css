@@ -221,15 +221,17 @@ button,input{font:inherit}
   display:grid;
   grid-template-columns:260px 1fr 360px;
   gap:20px;
-  padding:20px 24px 32px;
+  padding:20px 24px 24px;
   width:100%;
   overflow-x:hidden;
+  height:calc(100vh - 72px);
 }
 .left,.right{
   background:var(--panel);
   border-radius:20px;
   padding:20px;
-  min-height:680px;
+  height:100%;
+  overflow-y:auto;
   border:1px solid rgba(15,23,42,0.06);
 }
 .center{
@@ -316,10 +318,34 @@ button,input{font:inherit}
   border-radius:6px;
   white-space:nowrap;
 }
+.proj-footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
 .proj-time{
   color:var(--text-secondary);
   font-size:0.8rem;
   white-space:nowrap;
+}
+.proj-delete{
+  border:none;
+  background:transparent;
+  color:var(--text-secondary);
+  font-size:0.85rem;
+  line-height:1;
+  padding:2px 5px;
+  border-radius:6px;
+  cursor:pointer;
+  opacity:0;
+  transition:opacity .15s ease,background .15s ease,color .15s ease;
+}
+.project-item:hover .proj-delete{
+  opacity:1;
+}
+.proj-delete:hover{
+  background:#fee2e2;
+  color:#ef4444;
 }
 .preview-area{
   display:flex;
@@ -524,7 +550,7 @@ button,input{font:inherit}
   border-radius:16px;
   padding:16px;
   flex:1;
-  min-height:380px;
+  min-height:0;
   display:flex;
   flex-direction:column;
   gap:12px;
