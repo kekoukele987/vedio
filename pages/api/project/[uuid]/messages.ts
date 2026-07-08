@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getMessages, addMessage } from '../../../../lib/db'
+import { analyzeIntent, handleIntent } from '../../../../lib/ai'
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,15 +34,33 @@ async function list(_req: NextApiRequest, res: NextApiResponse, uuid: string) {
 
 async function create(req: NextApiRequest, res: NextApiResponse, uuid: string) {
   try {
-    const { role, content } = req.body || {}
-    if (!role || !content) {
-      return res.status(400).json({ error: 'role and content are required' })
+    const { content } = req.body || {}
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'content is required' })
     }
 
-    const message = await addMessage(uuid, role, content)
-    return res.status(201).json({ message })
+    // 1. 保存用户消息到数据库
+    const userMsg = await addMessage(uuid, 'user', content)
+
+    // 2. 调用 AI 进行意图分析
+    let botContent: string
+    try {
+      const intentResult = await analyzeIntent(content)
+      console.log('[intentAnalysis] action:', intentResult.action, '| reason:', intentResult.reason)
+      botContent = handleIntent(intentResult)
+    } catch (err: any) {
+      console.error('[intentAnalysis] AI call failed:', err.message)
+      // AI 调用失败时的兜底回复
+      botContent = '抱歉，AI 服务暂时不可用，请稍后再试。'
+    }
+
+    // 3. 保存系统回复到数据库
+    const botMsg = await addMessage(uuid, 'bot', botContent)
+
+    // 4. 返回两条消息
+    return res.status(201).json({ userMessage: userMsg, botMessage: botMsg })
   } catch (err: any) {
     console.error('[addMessage]', err)
-    return res.status(500).json({ error: 'Failed to add message' })
+    return res.status(500).json({ error: 'Failed to process message' })
   }
 }

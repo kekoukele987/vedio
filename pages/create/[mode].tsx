@@ -34,7 +34,7 @@ export default function CreatePage() {
         </section>
 
         <aside className="create-right">
-          <ChatPanel />
+          <ChatPanel projectId={projectIdStr} />
         </aside>
       </div>
     </div>

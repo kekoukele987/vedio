@@ -1,11 +1,11 @@
-import { useState } from 'react'
-import { Send, Sparkles, Bot, User } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Send, Sparkles, Bot, User, Loader2 } from 'lucide-react'
 
 type Message = {
   id: number
   role: 'user' | 'bot'
-  text: string
-  time: string
+  content: string
+  created_at?: string
 }
 
 const suggestions = [
@@ -14,42 +14,108 @@ const suggestions = [
   '创建一个教学演示视频',
 ]
 
-function nowTime() {
-  const d = new Date()
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+type Props = {
+  projectId?: string
 }
 
-export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 0,
-      role: 'bot',
-      text: '你好！我是 AI 创作助手，请输入提示词开始创作视频。我会帮你完成脚本生成、分镜拆分、画面生成等全流程。',
-      time: nowTime(),
-    },
-  ])
+export default function ChatPanel({ projectId }: Props) {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const sendMsg = () => {
+  // 当 projectId 变化时加载历史消息
+  useEffect(() => {
+    if (projectId) {
+      loadHistory(projectId)
+    } else {
+      setMessages([])
+    }
+  }, [projectId])
+
+  // 自动滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const loadHistory = async (pid: string) => {
+    setLoadingHistory(true)
+    try {
+      const resp = await fetch(`/api/project/${pid}/messages`)
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages)
+          return
+        }
+      }
+    } catch (err) {
+      console.error('[ChatPanel] Failed to load history:', err)
+    } finally {
+      setLoadingHistory(false)
+    }
+
+    // 无历史消息时显示欢迎语
+    setMessages([
+      {
+        id: 0,
+        role: 'bot',
+        content: '你好！我是 AI 创作助手，请输入提示词开始创作视频。我会帮你完成脚本生成、分镜拆分、画面生成等全流程。',
+      },
+    ])
+  }
+
+  const sendMsg = async () => {
     const trimmed = input.trim()
-    if (!trimmed) return
+    if (!trimmed || sending || !projectId) return
 
-    const userMsg: Message = {
+    setSending(true)
+    const userInput = trimmed
+    setInput('')
+
+    // 乐观更新：先显示用户消息
+    const tempUserMsg: Message = {
       id: Date.now(),
       role: 'user',
-      text: trimmed,
-      time: nowTime(),
+      content: userInput,
     }
+    setMessages((prev) => [...prev, tempUserMsg])
 
-    const botMsg: Message = {
-      id: Date.now() + 1,
-      role: 'bot',
-      text: '收到你的需求！正在分析并生成视频脚本…（此处为 UI 占位，后续将接入 AI 创作逻辑）',
-      time: nowTime(),
+    try {
+      const resp = await fetch(`/api/project/${projectId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: userInput }),
+      })
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}))
+        throw new Error((errData as any).error || `HTTP ${resp.status}`)
+      }
+
+      const data = await resp.json()
+      // 用服务器返回的真实消息替换临时消息
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempUserMsg.id)
+        return [...filtered, data.userMessage, data.botMessage]
+      })
+    } catch (err: any) {
+      // 发送失败：移除临时用户消息，显示错误
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempUserMsg.id)
+        return [
+          ...filtered,
+          {
+            id: Date.now() + 1,
+            role: 'bot',
+            content: '抱歉，消息发送失败：' + (err.message || '未知错误'),
+          },
+        ]
+      })
+    } finally {
+      setSending(false)
     }
-
-    setMessages((prev) => [...prev, userMsg, botMsg])
-    setInput('')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -58,6 +124,8 @@ export default function ChatPanel() {
       sendMsg()
     }
   }
+
+  const isWelcome = messages.length <= 1
 
   return (
     <div className="chat-panel">
@@ -70,19 +138,46 @@ export default function ChatPanel() {
       </div>
 
       <div className="chat-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chat-msg ${msg.role}`}>
-            <div className={`chat-msg-avatar ${msg.role}`}>
-              {msg.role === 'bot' ? <Bot size={16} /> : <User size={16} />}
+        {/* 加载历史 */}
+        {loadingHistory && (
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+            <Loader2 size={24} className="spin-icon" />
+            <p style={{ fontSize: 13, marginTop: 8 }}>加载历史消息…</p>
+          </div>
+        )}
+
+        {/* 消息列表 */}
+        {!loadingHistory &&
+          messages.map((msg) => (
+            <div key={msg.id} className={`chat-msg ${msg.role}`}>
+              <div className={`chat-msg-avatar ${msg.role}`}>
+                {msg.role === 'bot' ? <Bot size={16} /> : <User size={16} />}
+              </div>
+              <div>
+                <div className="chat-msg-bubble">{msg.content}</div>
+              </div>
+            </div>
+          ))}
+
+        {/* 发送中指示器 */}
+        {sending && (
+          <div className="chat-msg bot">
+            <div className="chat-msg-avatar bot">
+              <Bot size={16} />
             </div>
             <div>
-              <div className="chat-msg-bubble">{msg.text}</div>
-              <div className="chat-msg-time">{msg.time}</div>
+              <div className="chat-msg-bubble" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={14} className="spin-icon" />
+                正在分析…
+              </div>
             </div>
           </div>
-        ))}
+        )}
 
-        {messages.length <= 1 && (
+        <div ref={messagesEndRef} />
+
+        {/* 欢迎提示 */}
+        {!loadingHistory && isWelcome && !sending && (
           <div className="chat-welcome">
             <div className="chat-welcome-icon">
               <Sparkles size={24} />
@@ -93,7 +188,8 @@ export default function ChatPanel() {
         )}
       </div>
 
-      {messages.length <= 1 && (
+      {/* 快捷建议按钮 */}
+      {!loadingHistory && isWelcome && (
         <div style={{ padding: '0 16px 8px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {suggestions.map((s, i) => (
             <button
@@ -113,10 +209,20 @@ export default function ChatPanel() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入提示词或与 AI 对话…"
+          placeholder={
+            projectId
+              ? '输入提示词或与 AI 对话…'
+              : '请先选择或创建一个项目'
+          }
+          disabled={!projectId || sending}
         />
-        <button className="chat-send-btn" onClick={sendMsg} title="发送">
-          <Send size={16} />
+        <button
+          className="chat-send-btn"
+          onClick={sendMsg}
+          title="发送"
+          disabled={!projectId || sending || !input.trim()}
+        >
+          {sending ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />}
         </button>
       </div>
     </div>
