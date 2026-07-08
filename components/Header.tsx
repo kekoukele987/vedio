@@ -1,14 +1,27 @@
 import Link from 'next/link'
+import { Clapperboard } from 'lucide-react'
 
-export default function Header() {
+type Props = {
+  modeLabel?: string
+}
+
+export default function Header({ modeLabel }: Props) {
   return (
     <header className="header">
-      <div className="brand">
-        <div className="logo">AI</div>
-        <div className="name">AI 视频制作</div>
+      <div className="header-left">
+        <Link href="/">
+          <div className="header-logo" title="AI 视频制作">
+            <Clapperboard size={20} />
+          </div>
+        </Link>
+        <div className="header-brand">
+          <span className="header-brand-name">AI 视频制作</span>
+          <span className="header-brand-sub">AI Video Studio</span>
+        </div>
       </div>
-      <nav>
+      <nav className="header-nav">
         <Link href="/">首页</Link>
+        {modeLabel && <span className="header-mode-badge">{modeLabel}</span>}
       </nav>
     </header>
   )

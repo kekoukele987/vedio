@@ -8,8 +8,14 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
+    "lucide-react": "^1.23.0",
     "next": "^13.5.11",
     "react": "18.2.0",
     "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "@types/react": "19.2.17",
+    "typescript": "6.0.3"
   }
 }
