@@ -12,9 +12,23 @@ const modeLabel: Record<string, string> = {
 
 export default function CreatePage() {
   const router = useRouter()
+
+  // 等待 router 就绪后再读取 query 参数，避免拿到 undefined
+  if (!router.isReady) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Head><title>加载中…</title></Head>
+        <Header />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+          加载中…
+        </div>
+      </div>
+    )
+  }
+
   const { mode, projectId } = router.query
   const modeStr = String(mode || '')
-  const projectIdStr = typeof projectId === 'string' ? projectId : undefined
+  const projectIdStr = typeof projectId === 'string' && projectId.length > 0 ? projectId : undefined
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>

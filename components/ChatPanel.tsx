@@ -40,6 +40,11 @@ export default function ChatPanel({ projectId }: Props) {
   }, [messages])
 
   const loadHistory = async (pid: string) => {
+    // 防御：非法的 projectId 不发请求
+    if (!pid || pid === 'undefined' || pid.length < 10) {
+      setMessages([{ id: 0, role: 'bot', content: '你好！我是 AI 创作助手，请输入提示词开始创作视频。' }])
+      return
+    }
     setLoadingHistory(true)
     try {
       const resp = await fetch(`/api/project/${pid}/messages`)
