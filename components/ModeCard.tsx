@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { Check, ArrowRight } from 'lucide-react'
+import { Check, ArrowRight, Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 type Props = {
@@ -8,10 +7,19 @@ type Props = {
   title: string
   description: string
   features: string[]
-  href: string
+  loading?: boolean
+  onCreate: () => void
 }
 
-export default function ModeCard({ icon, iconClass, title, description, features, href }: Props) {
+export default function ModeCard({
+  icon,
+  iconClass,
+  title,
+  description,
+  features,
+  loading = false,
+  onCreate,
+}: Props) {
   return (
     <div className="mode-card">
       <div className={`mode-card-icon ${iconClass}`}>
@@ -27,12 +35,23 @@ export default function ModeCard({ icon, iconClass, title, description, features
           </li>
         ))}
       </ul>
-      <Link href={href} style={{ display: 'block' }}>
-        <button className="mode-card-btn">
-          开始创作
-          <ArrowRight size={18} />
-        </button>
-      </Link>
+      <button
+        className="mode-card-btn"
+        disabled={loading}
+        onClick={onCreate}
+      >
+        {loading ? (
+          <>
+            <Loader2 size={18} className="spin-icon" />
+            创建中…
+          </>
+        ) : (
+          <>
+            开始创作
+            <ArrowRight size={18} />
+          </>
+        )}
+      </button>
     </div>
   )
 }

@@ -12,8 +12,9 @@ const modeLabel: Record<string, string> = {
 
 export default function CreatePage() {
   const router = useRouter()
-  const { mode } = router.query
+  const { mode, projectId } = router.query
   const modeStr = String(mode || '')
+  const projectIdStr = typeof projectId === 'string' ? projectId : undefined
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -25,7 +26,7 @@ export default function CreatePage() {
 
       <div className="create-layout">
         <aside className="create-left">
-          <Sidebar />
+          <Sidebar activeProjectId={projectIdStr} />
         </aside>
 
         <section className="create-center">

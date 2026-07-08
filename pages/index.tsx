@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { Image, Code2 } from 'lucide-react'
 import Header from '../components/Header'
@@ -5,26 +7,58 @@ import ModeCard from '../components/ModeCard'
 
 const modes = [
   {
+    key: 'image' as const,
     title: '图片轮播模式',
     description:
       'AI 根据脚本生成高质量图片，自动拼接轮播形成视频，适合产品展示、宣传片等场景。',
     icon: <Image size={28} />,
     iconClass: 'image',
     features: ['AI 智能生成图片画面', '自动轮播转场特效', '一键导出 MP4 视频'],
-    href: '/create/image',
   },
   {
+    key: 'html' as const,
     title: 'HTML 视频模式',
     description:
       'AI 生成网页动画代码，通过 CSS / JS 动效渲染，录屏导出为高清视频，适合创意动画。',
     icon: <Code2 size={28} />,
     iconClass: 'html',
     features: ['AI 生成网页动画代码', 'CSS / JS 动效渲染', '录屏导出高清视频'],
-    href: '/create/html',
   },
 ]
 
+function nowStr() {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function Home() {
+  const router = useRouter()
+  const [creatingMode, setCreatingMode] = useState<string | null>(null)
+
+  const handleCreate = async (modeKey: string) => {
+    setCreatingMode(modeKey)
+    try {
+      const title = `${modeKey === 'image' ? '图片轮播' : 'HTML 视频'} - ${nowStr()}`
+      const resp = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, type: modeKey }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        throw new Error((data as any).error || `HTTP ${resp.status}`)
+      }
+
+      const project = await resp.json()
+      router.push(`/create/${modeKey}?projectId=${project.uuid}`)
+    } catch (err: any) {
+      alert('创建项目失败：' + (err.message || '未知错误'))
+      setCreatingMode(null)
+    }
+  }
+
   return (
     <div>
       <Head>
@@ -65,13 +99,14 @@ export default function Home() {
           <div className="home-modes">
             {modes.map((m) => (
               <ModeCard
-                key={m.href}
+                key={m.key}
                 icon={m.icon}
                 iconClass={m.iconClass}
                 title={m.title}
                 description={m.description}
                 features={m.features}
-                href={m.href}
+                loading={creatingMode === m.key}
+                onCreate={() => handleCreate(m.key)}
               />
             ))}
           </div>
